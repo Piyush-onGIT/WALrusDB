@@ -1,0 +1,223 @@
+#include "store.h"
+#include <cstring>
+#include <fcntl.h>
+#include <iostream>
+#include <unistd.h>
+
+Store::Store(const char *db_file) {
+  db_file_ = db_file;
+  wal_fd_ = open(db_file_, O_RDWR | O_CREAT | O_APPEND, 0644);
+  if (wal_fd_ == -1) {
+    std::cerr << "Failed to open DB file: " << strerror(errno) << "\n";
+    exit(EXIT_FAILURE);
+  }
+
+  stop_compact_thread_ = false;
+  stop_flush_thread_ = false;
+  background_flush_thread_ = std::thread(&Store::background_flush, this);
+  background_compact_wal_thread_ = std::thread(&Store::background_compact_wal, this);
+
+  while (1) {
+    uint8_t op;
+    uint32_t key_size;
+    uint32_t value_size;
+
+    // read header safely
+    if (read(wal_fd_, &op, sizeof(op)) != sizeof(op))
+      break;
+    if (read(wal_fd_, &key_size, sizeof(key_size)) != sizeof(key_size))
+      break;
+
+    // allocate buffers
+    std::string key(key_size, '\0');
+
+    if (op == static_cast<uint8_t>(op_t::PUT)) {
+      if (read(wal_fd_, &value_size, sizeof(value_size)) != sizeof(value_size))
+        break;
+
+      if (read(wal_fd_, key.data(), key_size) != key_size)
+        break;
+
+      std::string val(value_size, '\0');
+      if (read(wal_fd_, val.data(), value_size) != value_size)
+        break;
+
+      kv_[key] = val;
+    } else {
+      if (read(wal_fd_, key.data(), key_size) != key_size)
+        break;
+      kv_.erase(key);
+    }
+  }
+}
+
+Store::~Store() {
+  {
+    std::unique_lock<std::mutex> lock(compact_thread_mtx_);
+    stop_compact_thread_ = true;
+  }
+  {
+    std::unique_lock<std::mutex> lock(flush_thread_mtx_);
+    stop_flush_thread_ = true;
+  }
+  if (background_compact_wal_thread_.joinable()) {
+    background_compact_wal_thread_.join();
+  }
+  if (background_flush_thread_.joinable()) {
+    background_flush_thread_.join();
+  }
+  cv_.notify_all();
+}
+
+std::string Store::get(const std::string key) {
+  if (kv_.find(key) == kv_.end())
+    return "";
+  return kv_[key];
+}
+
+bool Store::put(const std::string key, const std::string value) {
+  std::string put_buffer;
+  uint8_t op = static_cast<uint8_t>(op_t::PUT);
+  uint32_t key_size = key.size();
+  uint32_t value_size = value.size();
+
+  put_buffer.append(reinterpret_cast<char *>(&op), sizeof(op));
+  put_buffer.append(reinterpret_cast<char *>(&key_size), sizeof(key_size));
+  put_buffer.append(reinterpret_cast<char *>(&value_size), sizeof(value_size));
+  put_buffer.append(key);
+  put_buffer.append(value);
+
+  write(wal_fd_, put_buffer.data(), put_buffer.size());
+
+  // Commenting "group commit" logic as it is not scalable for single threaded puts.
+  // std::unique_lock<std::mutex> lock(mtx_);
+  // uint64_t my_commit_id = ++global_commit_id_;
+  // write(wal_fd_, &put_buffer, sizeof(put_buffer));
+
+  // /**
+  //  * while (!(last_fsynced_id_ >= my_commit_id))
+  //  *  unlock and remain slept.
+  //  */
+  // cv_.wait(lock, [&]() { return last_fsynced_id_ >= my_commit_id; });
+
+  kv_[key] = value;
+  return true;
+}
+
+void Store::del(const std::string key) {
+  if (kv_.find(key) == kv_.end())
+    return;
+
+  std::string del_buffer;
+  uint8_t op = static_cast<uint8_t>(op_t::DELETE);
+  uint32_t key_size = key.size();
+
+  del_buffer.append(reinterpret_cast<char *>(&op), sizeof(op));
+  del_buffer.append(reinterpret_cast<char *>(&key_size), sizeof(key_size));
+  del_buffer.append(key);
+
+  write(wal_fd_, del_buffer.data(), del_buffer.size());
+
+  // Commenting "group commit" logic as it is not scalable for single threaded puts.
+  // std::unique_lock<std::mutex> lock(mtx_);
+  // uint64_t my_commit_id = ++global_commit_id_;
+  // write(wal_fd_, &del_buffer, sizeof(del_buffer));
+
+  // /**
+  //  * while (!(last_fsynced_id_ >= my_commit_id))
+  //  *  unlock and remain slept.
+  //  */
+  // cv_.wait(lock, [&]() { return last_fsynced_id_ >= my_commit_id; });
+
+  kv_.erase(key);
+}
+
+void Store::background_flush() {
+  while (1) {
+    std::unique_lock<std::mutex> lock(flush_thread_mtx_);
+
+    cv_.wait_for(lock, std::chrono::milliseconds(100), [&]() {
+      return stop_flush_thread_;
+    });
+    if (stop_flush_thread_) break;
+
+    lock.unlock();
+    if (wal_fd_ <= 0) continue;
+
+    if (fsync(wal_fd_) != 0) {
+      perror("fsync failed");
+      break;
+    }
+
+
+
+    // Commenting "group commit" logic as it is not scalable for single threaded puts.
+    // std::unique_lock<std::mutex> lock(mtx_);
+
+    // if (last_fsynced_id_ == global_commit_id_)
+    //   continue;
+
+    // if (fsync(wal_fd_) != 0) {
+    //   perror("fsync failed");
+    //   return;
+    // }
+
+    // last_fsynced_id_ = global_commit_id_;
+    // cv_.notify_all();
+  }
+}
+
+void Store::background_compact_wal() {
+  while (!stop_compact_thread_) {
+    std::unique_lock<std::mutex> lock(compact_thread_mtx_);
+
+    cv_.wait_for(lock, std::chrono::milliseconds(100), [&]() {
+      return stop_compact_thread_;
+    });
+    if (stop_compact_thread_) break;
+
+    lock.unlock();
+    if (wal_fd_ <= 0) continue;
+
+    uint8_t op;
+    uint32_t key_size;
+    uint32_t value_size;
+    std:: string compact_buffer;
+    int tmp_wal_fd;
+    int dir_fd;
+
+    for (auto x : kv_) {
+      op = static_cast<uint8_t>(op_t::PUT);
+      key_size = x.first.size();
+      value_size = x.second.size();
+
+      compact_buffer.append(reinterpret_cast<char *>(&op), sizeof(op));
+      compact_buffer.append(reinterpret_cast<char *>(&key_size), sizeof(key_size));
+      compact_buffer.append(reinterpret_cast<char *>(&value_size), sizeof(value_size));
+      compact_buffer.append(x.first);
+      compact_buffer.append(x.second);
+    }
+
+    tmp_wal_fd = open("./db/tmp_compact_wal.log", O_RDWR | O_CREAT | O_TRUNC, 0644);
+    write(tmp_wal_fd, compact_buffer.data(), compact_buffer.size());
+    if (fsync(tmp_wal_fd) != 0) {
+      perror("fsync failed");
+      close(tmp_wal_fd);
+      return;
+    }
+    close(tmp_wal_fd);
+
+    // atomic replace
+    if (rename("./db/tmp_compact_wal.log", db_file_) != 0) {
+        perror("rename failed");
+        return;
+    }
+
+    // flush directory metadata
+    dir_fd = open("./db", O_DIRECTORY);
+    if (dir_fd >= 0) {
+        fsync(dir_fd);
+        close(dir_fd);
+    }
+  }
+}

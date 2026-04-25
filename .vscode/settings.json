@@ -1,0 +1,12 @@
+{
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false,
+        "cpp": false
+    },
+    "C_Cpp.default.recursiveIncludes.order": "",
+    "editor.tabSize": 2,
+    "editor.indentSize": "tabSize"
+}
