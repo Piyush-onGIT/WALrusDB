@@ -89,17 +89,6 @@ bool Store::put(const std::string key, const std::string value) {
 
   write(wal_fd_, put_buffer.data(), put_buffer.size());
 
-  // Commenting "group commit" logic as it is not scalable for single threaded puts.
-  // std::unique_lock<std::mutex> lock(mtx_);
-  // uint64_t my_commit_id = ++global_commit_id_;
-  // write(wal_fd_, &put_buffer, sizeof(put_buffer));
-
-  // /**
-  //  * while (!(last_fsynced_id_ >= my_commit_id))
-  //  *  unlock and remain slept.
-  //  */
-  // cv_.wait(lock, [&]() { return last_fsynced_id_ >= my_commit_id; });
-
   kv_[key] = value;
   return true;
 }
@@ -117,18 +106,6 @@ void Store::del(const std::string key) {
   del_buffer.append(key);
 
   write(wal_fd_, del_buffer.data(), del_buffer.size());
-
-  // Commenting "group commit" logic as it is not scalable for single threaded puts.
-  // std::unique_lock<std::mutex> lock(mtx_);
-  // uint64_t my_commit_id = ++global_commit_id_;
-  // write(wal_fd_, &del_buffer, sizeof(del_buffer));
-
-  // /**
-  //  * while (!(last_fsynced_id_ >= my_commit_id))
-  //  *  unlock and remain slept.
-  //  */
-  // cv_.wait(lock, [&]() { return last_fsynced_id_ >= my_commit_id; });
-
   kv_.erase(key);
 }
 
@@ -148,22 +125,6 @@ void Store::background_flush() {
       perror("fsync failed");
       break;
     }
-
-
-
-    // Commenting "group commit" logic as it is not scalable for single threaded puts.
-    // std::unique_lock<std::mutex> lock(mtx_);
-
-    // if (last_fsynced_id_ == global_commit_id_)
-    //   continue;
-
-    // if (fsync(wal_fd_) != 0) {
-    //   perror("fsync failed");
-    //   return;
-    // }
-
-    // last_fsynced_id_ = global_commit_id_;
-    // cv_.notify_all();
   }
 }
 
