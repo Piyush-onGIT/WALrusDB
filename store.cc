@@ -53,11 +53,11 @@ Store::Store(const char *db_file) {
 
 Store::~Store() {
   {
-    std::unique_lock<std::mutex> lock(compact_thread_mtx_);
+    std::lock_guard<std::mutex> lock(compact_thread_mtx_);
     stop_compact_thread_ = true;
   }
   {
-    std::unique_lock<std::mutex> lock(flush_thread_mtx_);
+    std::lock_guard<std::mutex> lock(flush_thread_mtx_);
     stop_flush_thread_ = true;
   }
   if (background_compact_wal_thread_.joinable()) {
@@ -70,9 +70,12 @@ Store::~Store() {
 }
 
 std::string Store::get(const std::string key) {
-  if (kv_.find(key) == kv_.end())
-    return "";
-  return kv_[key];
+  {
+    std::lock_guard<std::mutex> lock(kv_mtx_);
+    if (kv_.find(key) == kv_.end())
+      return "";
+    return kv_[key];
+  }
 }
 
 bool Store::put(const std::string key, const std::string value) {
@@ -87,15 +90,20 @@ bool Store::put(const std::string key, const std::string value) {
   put_buffer.append(key);
   put_buffer.append(value);
 
-  write(wal_fd_, put_buffer.data(), put_buffer.size());
-
-  kv_[key] = value;
+  {
+    std::lock_guard<std::mutex> lock(kv_mtx_);
+    write(wal_fd_, put_buffer.data(), put_buffer.size());
+    kv_[key] = value;
+  }
   return true;
 }
 
 void Store::del(const std::string key) {
-  if (kv_.find(key) == kv_.end())
-    return;
+  {
+    std::lock_guard<std::mutex> lock(kv_mtx_);
+    if (kv_.find(key) == kv_.end())
+      return;
+  }
 
   std::string del_buffer;
   uint8_t op = static_cast<uint8_t>(op_t::DELETE);
@@ -105,8 +113,11 @@ void Store::del(const std::string key) {
   del_buffer.append(reinterpret_cast<char *>(&key_size), sizeof(key_size));
   del_buffer.append(key);
 
-  write(wal_fd_, del_buffer.data(), del_buffer.size());
-  kv_.erase(key);
+  {
+    std::lock_guard<std::mutex> lock(kv_mtx_);
+    write(wal_fd_, del_buffer.data(), del_buffer.size());
+    kv_.erase(key);
+  }
 }
 
 void Store::background_flush() {
