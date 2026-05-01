@@ -13,7 +13,7 @@ SkipList::SkipList() {
 int SkipList::LevelPromoter() {
   int level = 0;
 
-  while (level < MAX_LEVEL - 1) {
+  while (level < MAX_LEVEL) {
     int coin = rand() % 2;
     if (coin == 0) break;
     level++;
@@ -26,9 +26,9 @@ void SkipList::Insert(std::string key, std::string val) {
   int level = LevelPromoter();
   current_top_level_ = std::max(current_top_level_, level);
   current_top_level_ = std::min(current_top_level_, static_cast<int>(MAX_LEVEL));
-  int level_itr_ = current_top_level_;
+  int level_itr_ = 0;
 
-  while (level_itr_ >= 0) {
+  while (level_itr_ <= level) {
     SkipListNode* itr_node = head_->next_[level_itr_];
     SkipListNode* update_node = head_;
     SkipListNode* new_node = new SkipListNode();
@@ -37,7 +37,7 @@ void SkipList::Insert(std::string key, std::string val) {
 
     if (itr_node == nullptr) {
       head_->next_[level_itr_] = new_node;
-      level_itr_--;
+      level_itr_++;
       continue;
     }
 
@@ -50,7 +50,7 @@ void SkipList::Insert(std::string key, std::string val) {
     update_node->next_[level_itr_] = new_node;
     new_node->next_[level_itr_] = tmp;
 
-    level_itr_--;
+    level_itr_++;
   }
 }
 
