@@ -23,6 +23,11 @@ int SkipList::LevelPromoter() {
 }
 
 void SkipList::Insert(std::string key, std::string val) {
+  std::optional<SkipListNode *> search_node = SearchNode(key);
+  if (search_node) {
+    (*search_node)->val_ = val;
+    return;
+  }
   int level = LevelPromoter();
   current_top_level_ = std::max(current_top_level_, level);
   int level_itr = current_top_level_;
@@ -37,15 +42,26 @@ void SkipList::Insert(std::string key, std::string val) {
            node_itr->next_[level_itr]->key_ < key) {
       node_itr = node_itr->next_[level_itr];
     }
-    if (level_itr > level) continue;
-    
-    SkipListNode* tmp = node_itr->next_[level_itr];
+    if (level_itr > level)
+      continue;
+
+    SkipListNode *tmp = node_itr->next_[level_itr];
     node_itr->next_[level_itr] = new_node;
     new_node->next_[level_itr] = tmp;
   }
 }
 
 std::optional<std::string> SkipList::Search(std::string key) {
+  std::optional<SkipListNode *> search_node = SearchNode(key);
+  if (!search_node.has_value())
+    return std::nullopt;
+
+  if ((*search_node)->is_deleted_)
+    return std::nullopt;
+  return (*search_node)->val_;
+}
+
+std::optional<SkipList::SkipListNode *> SkipList::SearchNode(std::string key) {
   if (head_ == nullptr)
     return std::nullopt;
 
@@ -60,18 +76,25 @@ std::optional<std::string> SkipList::Search(std::string key) {
   }
 
   if (node_itr->next_[0] != nullptr && node_itr->next_[0]->key_ == key)
-    return node_itr->next_[0]->val_;
+    return node_itr->next_[0];
   return std::nullopt;
 }
 
-void SkipList::Delete(std::string key) {}
+void SkipList::Delete(std::string key) {
+  std::optional<SkipListNode *> search_node = SearchNode(key);
+  if (!search_node.has_value())
+    return;
+  
+  (*search_node)->is_deleted_ = true;
+}
 
 void SkipList::PrintSkipList() {
   for (int i = current_top_level_; i >= 0; i--) {
     std::cout << "Level " << i << ": ";
     SkipListNode *itr = head_->next_[i];
     while (itr) {
-      std::cout << "(" << itr->key_ << ":" << itr->val_ << ")->";
+      if (!itr->is_deleted_) 
+        std::cout << "(" << itr->key_ << ":" << itr->val_ << ")->";
       itr = itr->next_[i];
     }
     std::cout << "nullptr" << std::endl;

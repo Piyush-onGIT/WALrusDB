@@ -18,9 +18,11 @@ class SkipList {
   struct SkipListNode {
     std::string key_;
     std::string val_;
+    bool is_deleted_;
     SkipListNode* next_[MAX_LEVEL];
 
     SkipListNode() {
+      is_deleted_ = false;
       for (int i = 0; i < MAX_LEVEL; ++i) {
         next_[i] = nullptr;
       }
@@ -28,6 +30,7 @@ class SkipList {
   };
 
   int LevelPromoter();
+  std::optional<SkipListNode*> SearchNode(std::string key);
  
   SkipListNode* head_;
   int current_top_level_;
