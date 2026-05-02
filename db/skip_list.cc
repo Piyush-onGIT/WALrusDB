@@ -51,6 +51,20 @@ void SkipList::Insert(std::string key, std::string val) {
   }
 }
 
+void SkipList::InsertBatch(WriterBatch &batch) {
+  std::string key, val;
+  op_t op;
+
+  int batch_itr = batch.Size();
+  if (batch_itr == MAX_BATCH_SIZE) batch_itr--;
+
+  while (batch_itr >= 0) {
+    batch.Get(batch_itr, op, key, val);
+    this->Insert(key, val);
+    batch_itr--;
+  }
+}
+
 std::optional<std::string> SkipList::Search(std::string key) {
   std::optional<SkipListNode *> search_node = SearchNode(key);
   if (!search_node.has_value())
@@ -84,7 +98,7 @@ void SkipList::Delete(std::string key) {
   std::optional<SkipListNode *> search_node = SearchNode(key);
   if (!search_node.has_value())
     return;
-  
+
   (*search_node)->is_deleted_ = true;
 }
 
@@ -95,8 +109,7 @@ void SkipList::PrintSkipList() {
     while (itr) {
       if (itr->is_deleted_) {
         std::cout << "(" << itr->key_ << ": X)->";
-      }
-      else {
+      } else {
         std::cout << "(" << itr->key_ << ":" << itr->val_ << ")->";
       }
       itr = itr->next_[i];

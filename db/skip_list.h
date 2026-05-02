@@ -1,6 +1,7 @@
 #include <string>
 #include <cstdint>
 #include <optional>
+#include "writer_batch.h"
 #include <iostream>
 
 #define MAX_LEVEL 16
@@ -9,10 +10,10 @@ class SkipList {
  public:
   SkipList();
   void Insert(std::string key, std::string val);
+  void InsertBatch(WriterBatch &batch);
   std::optional<std::string> Search(std::string key);
   void Delete(std::string key);
   void PrintSkipList();
-  
 
  private:
   struct SkipListNode {
