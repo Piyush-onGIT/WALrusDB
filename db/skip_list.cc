@@ -93,8 +93,12 @@ void SkipList::PrintSkipList() {
     std::cout << "Level " << i << ": ";
     SkipListNode *itr = head_->next_[i];
     while (itr) {
-      if (!itr->is_deleted_) 
+      if (itr->is_deleted_) {
+        std::cout << "(" << itr->key_ << ": X)->";
+      }
+      else {
         std::cout << "(" << itr->key_ << ":" << itr->val_ << ")->";
+      }
       itr = itr->next_[i];
     }
     std::cout << "nullptr" << std::endl;
