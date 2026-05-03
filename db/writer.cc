@@ -1,13 +1,6 @@
 #include "writer.h"
 
-Writer::Writer(std::mutex* mtx): mtx_(mtx) {}
-
-bool Writer::Write(std::string key, std::string val) {
-  // add to WAL
-  // insert into memtable
-  // cv notify all
-  // done
-}
+Writer::Writer(std::mutex* mtx): mtx_(mtx), done_(false), is_tombstone_(false) {}
 
 void Writer::Wait() {
   std::unique_lock<std::mutex> lock(*mtx_, std::adopt_lock);

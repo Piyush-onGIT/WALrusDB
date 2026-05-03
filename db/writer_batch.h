@@ -1,4 +1,6 @@
-#include "include/types.h"
+#pragma once
+
+#include "types.h"
 #include <string>
 
 #define MAX_BATCH_SIZE 10

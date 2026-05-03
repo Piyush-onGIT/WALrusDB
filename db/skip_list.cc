@@ -55,12 +55,16 @@ void SkipList::InsertBatch(WriterBatch &batch) {
   std::string key, val;
   op_t op;
 
-  int batch_itr = batch.Size();
-  if (batch_itr == MAX_BATCH_SIZE) batch_itr--;
+  int batch_itr = batch.Size() - 1;
+  if (batch_itr < 0) return;
 
   while (batch_itr >= 0) {
     batch.Get(batch_itr, op, key, val);
-    this->Insert(key, val);
+    if (op == op_t::PUT) {
+      this->Insert(key, val);
+    } else {
+      this->Delete(key);
+    }
     batch_itr--;
   }
 }

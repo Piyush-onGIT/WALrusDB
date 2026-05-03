@@ -18,8 +18,8 @@ void Log::AddRecord(WriterBatch &batch) {
   uint8_t op_int;
   uint32_t key_size, val_size;
 
-  int batch_itr = batch.Size();
-  if (batch_itr == MAX_BATCH_SIZE) batch_itr--;
+  int batch_itr = batch.Size() - 1;
+  if (batch_itr < 0) return;
 
   while (batch_itr >= 0) {
     batch.Get(batch_itr, op, key, val);
@@ -28,12 +28,54 @@ void Log::AddRecord(WriterBatch &batch) {
     val_size = val.size();
     put_buffer.append(reinterpret_cast<char *>(&op_int), sizeof(op_int));
     put_buffer.append(reinterpret_cast<char *>(&key_size), sizeof(key_size));
+    if (op == op_t::DELETE) {
+      put_buffer.append(key);
+      goto next_update;
+    }
     put_buffer.append(reinterpret_cast<char *>(&val_size), sizeof(val_size));
     put_buffer.append(key);
     put_buffer.append(val);
-    batch_itr--;
+
+    next_update:
+      batch_itr--;
   }
   write(fd_, put_buffer.data(), put_buffer.size());
+}
+
+void Log::Replay(SkipList &skip_list) {
+  WriterBatch batch;
+  while (1) {
+    uint8_t op;
+    uint32_t key_size;
+    uint32_t value_size;
+
+    // read header safely
+    if (read(fd_, &op, sizeof(op)) != sizeof(op))
+      break;
+    if (read(fd_, &key_size, sizeof(key_size)) != sizeof(key_size))
+      break;
+
+    // allocate buffers
+    std::string key(key_size, '\0');
+
+    if (op == static_cast<uint8_t>(op_t::PUT)) {
+      if (read(fd_, &value_size, sizeof(value_size)) != sizeof(value_size))
+        break;
+
+      if (read(fd_, key.data(), key_size) != key_size)
+        break;
+
+      std::string val(value_size, '\0');
+      if (read(fd_, val.data(), value_size) != value_size)
+        break;
+
+      skip_list.Insert(key, val);
+    } else {
+      if (read(fd_, key.data(), key_size) != key_size)
+        break;
+      skip_list.Delete(key);
+    }
+  }
 }
 
 void Log::Flush() {

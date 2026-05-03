@@ -1,3 +1,5 @@
+#pragma once
+
 #include "skip_list.h"
 
 enum MemtableState {
