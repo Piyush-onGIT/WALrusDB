@@ -2,4 +2,3 @@
 *.out
 tmp/
 build/
-test/
