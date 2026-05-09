@@ -25,6 +25,7 @@ int SkipList::LevelPromoter() {
 void SkipList::Insert(std::string key, std::string val) {
   std::optional<SkipListNode *> search_node = SearchNode(key);
   if (search_node) {
+    (*search_node)->is_deleted_ = false;
     (*search_node)->val_ = val;
     return;
   }
