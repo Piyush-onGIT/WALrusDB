@@ -68,6 +68,10 @@ void DB::PutWriter(Writer &w) {
     w.Wait();
   }
 
+  if (w.done_) {
+    return;
+  }
+
   std::deque<Writer*>::iterator iter = writer_queue_.begin();
   Writer* last_writer = &w;
   for (; iter != writer_queue_.end(); iter++) {
