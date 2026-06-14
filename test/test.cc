@@ -1,18 +1,14 @@
 /**
- * leveldb_test.cc
+ * test.cc
  *
- * Comprehensive test suite for LevelDB.
- * All reads and writes go through DBWrapper — swap the implementation
- * inside DBWrapper::Put / Get / Delete to test your own walrusdb.
+ * Comprehensive test suite for WalrusDB.
+ * All reads and writes go through DBWrapper
  *
  * Build:
- *   g++ leveldb_test.cc -o leveldb_test \
- *       -I/path/to/leveldb/include \
- *       -L/path/to/leveldb/build \
- *       -lleveldb -lpthread -std=c++17
+ *  g++ -I ../include/ -I ../db/ test.cc -L ../build/ -lwalrusdb -lpthread -std=c++17 -o test
  *
  * Run:
- *   ./leveldb_test
+ *   ./test
  */
 
 #include <db.h>
