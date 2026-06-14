@@ -4,18 +4,19 @@
 
 enum MemtableState {
   ACTIVE,
-  SEALED
+  FLUSHING
 };
 
 class MemTable {
  public:
-  std::optional<std::string> Search(std::string key);
+  MemTable();
+  std::optional<std::string> Get(std::string key);
   void Insert(std::string key, std::string val);
   void Delete(std::string key);
 
  private:
   MemtableState state_ = MemtableState::ACTIVE;
   int memory_usage_ = 0;
-  int flush_threshold_ = 80;
-  SkipList skip_list_;
+  int flush_threshold_ = (64 * 1024 * 1024);  // 64MB
+  SkipList* skip_list_;
 };
