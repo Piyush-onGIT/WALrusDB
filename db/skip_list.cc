@@ -122,3 +122,7 @@ void SkipList::PrintSkipList() {
     std::cout << "nullptr" << std::endl;
   }
 }
+
+int SkipList::SizeOfNode() {
+  return sizeof(SkipListNode);
+}

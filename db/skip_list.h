@@ -16,6 +16,7 @@ class SkipList {
   std::optional<std::string> Search(std::string key);
   void Delete(std::string key);
   void PrintSkipList();
+  int SizeOfNode();
 
  private:
   struct SkipListNode {
